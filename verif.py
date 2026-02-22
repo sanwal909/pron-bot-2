@@ -5,6 +5,7 @@ import threading
 from datetime import datetime, timedelta
 import logging
 
+# Import config FIRST
 from config import *
 
 logger = logging.getLogger(__name__)
@@ -35,28 +36,42 @@ class VerificationSystem:
             
             # Create invite link
             invite = self.bot.create_chat_invite_link(
-                chat_id=channel_id,
+                chat_id=int(channel_id),  # Make sure it's int
                 member_limit=1,  # Single use
                 expire_date=expire_date
             )
             
-            # Store link info
-            if str(user_id) not in invite_links:
-                invite_links[str(user_id)] = []
+            # FIXED: Properly handle invite_links as dictionary with list values
+            user_id_str = str(user_id)
             
-            invite_links[str(user_id)].append({
+            # Get current invite_links from global scope
+            global invite_links
+            
+            # Check if user_id exists in invite_links
+            if user_id_str not in invite_links:
+                # If not, create a new list
+                invite_links[user_id_str] = []
+            
+            # Now append to the list (not to the dictionary)
+            invite_links[user_id_str].append({
                 "link": invite.invite_link,
                 "plan": plan_type,
                 "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "expires_at": expire_date.strftime("%Y-%m-%d %H:%M:%S"),
                 "used": False
             })
+            
+            # Save to file
             save_json_file(INVITE_LINKS_FILE, invite_links)
             
             return invite.invite_link
+            
         except Exception as e:
             logger.error(f"Error creating invite link: {e}")
-            return f"Error creating link: {str(e)}"
+            # Print full error for debugging
+            import traceback
+            traceback.print_exc()
+            return f"Error creating link. Please contact admin."
     
     def plan_selection_keyboard(self):
         """Show plan selection buttons"""
@@ -217,6 +232,10 @@ You'll receive unique join link within few minutes.
         
         # Create unique invite link for specific channel
         invite_link = self.create_invite_link(user_id, plan_type)
+        
+        # Check if link creation failed
+        if "Error" in invite_link:
+            return False, invite_link
         
         # Send join link to user
         try:
